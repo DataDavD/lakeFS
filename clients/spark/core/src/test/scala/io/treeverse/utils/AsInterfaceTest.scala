@@ -35,6 +35,14 @@ class AsInterfaceTest extends AnyFunSuite {
     assert(f.foo(4) === 16)
   }
 
+  test("Boo as Foo can use method returning a Boo") {
+    val aicl = new AsInterfaceClassLoader(
+      getClass.getClassLoader,
+      Map(("io.treeverse.utils.Boo", classOf[Foo])))
+    val f: Foo = aicl.loadClass("io.treeverse.utils.Boo").newInstance.asInstanceOf[Foo]
+    assert(f.another.foo(4) === 16)
+  }
+
   test("Goo as Foo fails") {
     val aicl = new AsInterfaceClassLoader(
       getClass.getClassLoader,
