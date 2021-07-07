@@ -10,11 +10,11 @@ class AsInterfaceClassLoader(
 
   val skip = ifaces.values.map(_.getName).toSet
 
-  private def asInterfaceClass(iface: Class[_], bytes: Array[Byte]): Array[Byte] = {
+  private def asInterfaceClass(bytes: Array[Byte]): Array[Byte] = {
     val cr = new ClassReader(bytes)
     val cw = new ClassWriter(cr, 0)
     val cc = new CheckClassAdapter(cw)
-    val ai = new AsInterface(cc, iface)
+    val ai = new AsInterface(cc, ifaces)
 
     cr.accept(ai, 0)
     cw.toByteArray
@@ -56,10 +56,7 @@ class AsInterfaceClassLoader(
     val rawBytesStream = new ByteArrayOutputStream
     ByteStreams.copy(classStream, rawBytesStream)
     val rawBytes = rawBytesStream.toByteArray
-    val bytes = ifaces get name match {
-      case Some(iface) => asInterfaceClass(iface, rawBytes)
-      case None => rawBytes
-    }
+    val bytes = asInterfaceClass(rawBytes)
     defineClass(name, bytes, 0, bytes.length)
   }
 }
