@@ -99,6 +99,8 @@ This declaration is true _if_ the loaded class does indeed implement those
 methods needed by the interface.  This will be checked by the JVM but only
 at run-time.
 
+#### TODO: static methods need to be exported into a separate object!
+
 ### Return types are safely covariant
 
 The ClassLoader does nothing to translate return types where covariance is
@@ -143,3 +145,91 @@ instance, the ClassLoader does nothing with parameters of array, function,
 or container types that involve type translation.  Such methods seem to be
 less common in the code we are interested in translating, making this less
 important in the first phase.
+
+#### Example
+
+Say we have concrete classes B and C to export and wrap B with interface A
+on the client side.  We wish to translate classes B and C such as
+
+```scala
+class B {
+  def a(n: Int) = n*n
+}
+
+class C(n: Int) {
+  def x(b: B) = b.a(n)
+}
+```
+
+to satisfy some interfaces such as
+
+```scala
+trait A {
+  def a(n: Int): Int
+}
+
+trait D {
+  def x(b: A): Int
+}
+```
+
+The client cannot call `C.x` or even know about its type, it does not know
+about B and it receives all B's as interface A.  So we shall edit C to add
+an additional overload for `C.x` that satisfies D:
+
+```scala
+class C {
+  def x(a: A): Int = x(a.asInstanceOf[B])
+  def x(b: B) = b.a(11)
+}
+```
+
+Now C can be made to satisfy D, and we can return it.  Relevant parts from
+the JVM assembler version.
+
+The original `C.x` loads its parameter b and invokes `b.a(11)`:
+
+```asm
+  public int x(io.treeverse.utils.B);
+    descriptor: (Lio/treeverse/utils/B;)I
+    flags: (0x0001) ACC_PUBLIC
+    Code:
+      stack=2, locals=2, args_size=2
+         0: aload_1
+         1: bipush        11
+         3: invokevirtual #23                 // Method io/treeverse/utils/B.a:(I)I
+         6: ireturn
+      LineNumberTable:
+        line 53: 0
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0       7     0  this   Lio/treeverse/utils/C;
+            0       7     1     b   Lio/treeverse/utils/B;
+    MethodParameters:
+      Name                           Flags
+      b                              final
+```
+
+We add a new `C.x` that downcasts its parameter a to B and forwards to the
+original `C.x`:
+
+```asm
+  public int x(io.treeverse.utils.A);
+    descriptor: (Lio/treeverse/utils/A;)I
+    flags: (0x0001) ACC_PUBLIC
+    Code:
+      stack=2, locals=2, args_size=2
+         0: aload_0
+         1: aload_1
+         2: checkcast     #13                 // class io/treeverse/utils/B
+         5: invokevirtual #16                 // Method x:(Lio/treeverse/utils/B;)I
+         8: ireturn
+      LineNumberTable:
+        line 52: 0
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0       9     0  this   Lio/treeverse/utils/C;
+            0       9     1     a   Lio/treeverse/utils/A;
+    MethodParameters:
+      Name                           Flags
+```
